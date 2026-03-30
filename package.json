@@ -1,24 +1,14 @@
 {
   "name": "minecraft-telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram bot to monitor Minecraft server status",
-  "main": "bot.js",
+  "description": "Telegram bot monitor Minecraft server",
+  "main": "server-bot.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node server-bot.js"
   },
-  "keywords": [
-    "minecraft",
-    "telegram",
-    "bot",
-    "server-status"
-  ],
-  "author": "YourName",
-  "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.0",
-    "dotenv": "^16.3.1"
+    "node-fetch": "^3.4.1",
+    "node-telegram-bot-api": "^0.61.0"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "type": "module"
 }
