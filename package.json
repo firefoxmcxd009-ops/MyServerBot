@@ -1,7 +1,7 @@
 {
   "name": "minecraft-telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram bot monitor Minecraft server",
+  "description": "Telegram bot monitor Minecraft server foxmckingdom.apsara.fun",
   "main": "server-bot.js",
   "scripts": {
     "start": "node server-bot.js"
