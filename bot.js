@@ -1,101 +1,99 @@
-require('dotenv').config();
-const axios = require("axios");
-const http = require("http"); // keep alive trick
+import fetch from "node-fetch";
+import TelegramBot from "node-telegram-bot-api";
 
-const TOKEN = process.env.TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
-const SERVER = process.env.SERVER;
+// ====== CONFIG ======
+const BOT_TOKEN = "8513075659:AAFz9PjKQZKeA1MTnCSbkWzx57n84XMDDbE"; // paste token from BotFather
+const CHAT_ID = "-1003699485147";     // example: -1001234567890
+const SERVER_IP = "foxmckingdom.apsara.fun";
+const CHECK_INTERVAL = 30 * 1000; // check every 30 sec
 
+// ====== INIT BOT ======
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+
+// ====== TRACK SERVER STATUS ======
 let lastStatus = null;
-let restarting = false;
-
-function getDateTime() {
-    let d = new Date();
-    return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} | ${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`;
-}
-
-async function sendMessage(html) {
-    await axios.post(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-        chat_id: CHAT_ID,
-        text: html,
-        parse_mode: "HTML"
-    });
-}
+let lastPlayers = 0;
 
 async function checkServer() {
-    try {
-        let res = await axios.get(`https://api.mcsrvstat.us/2/${SERVER}`);
-        let data = res.data;
+  try {
+    const res = await fetch(`https://api.mcsrvstat.us/2/${SERVER_IP}`);
+    const data = await res.json();
 
-        if (data.online) {
-            if (lastStatus !== "online") {
-                let msg = `
-<b>🟢 SERVER ONLINE</b>
+    const online = data.online;
+    const players = data.players?.online || 0;
+    let status = online ? "online" : "offline";
 
-📡 <b>Status:</b> Online
-👥 <b>Players:</b> ${data.players.online}/${data.players.max}
-📦 <b>Version:</b> ${data.version}
+    // detect status change
+    if (status !== lastStatus) {
+      lastStatus = status;
 
-🕒 <b>Time:</b> ${getDateTime()}
-🎉 <b>Server បានបើកហើយ!</b>
-`;
-                await sendMessage(msg);
-                lastStatus = "online";
-                restarting = false;
-            }
-        } else {
-            if (lastStatus === "online" && !restarting) {
-                restarting = true;
-
-                let timeout = 30; // seconds
-                let msgRestart = `
-<b>🔄 SERVER RESTARTING</b>
-
-⚠️ <b>Server នឹង Restart</b>
-⏳ <b>ក្នុងរយៈពេល:</b> ${timeout} វិនាទី
-
-🕒 <b>Time:</b> ${getDateTime()}
-`;
-                await sendMessage(msgRestart);
-
-                setTimeout(async () => {
-                    let msgOff = `
-<b>🔴 SERVER OFFLINE</b>
-
-❌ <b>Status:</b> Offline
-📅 <b>Date:</b> ${getDateTime()}
-
-💤 <b>Server បានបិតហើយ</b>
-`;
-                    await sendMessage(msgOff);
-                    lastStatus = "offline";
-                }, timeout * 1000);
-            }
-
-            if (lastStatus !== "offline" && !restarting) {
-                let msgOff = `
-<b>🔴 SERVER OFFLINE</b>
-
-❌ <b>Status:</b> Offline
-📅 <b>Date:</b> ${getDateTime()}
-
-💤 <b>Server បានបិតហើយ</b>
-`;
-                await sendMessage(msgOff);
-                lastStatus = "offline";
-            }
-        }
-
-    } catch (err) {
-        console.log("Error:", err.message);
+      if (status === "online") {
+        bot.sendMessage(
+          CHAT_ID,
+          `✅ Server *${SERVER_IP}* is now ONLINE!\n👥 Players: ${players}`,
+          { parse_mode: "Markdown" }
+        );
+      } else {
+        bot.sendMessage(
+          CHAT_ID,
+          `❌ Server *${SERVER_IP}* is OFFLINE or restarting!`,
+          { parse_mode: "Markdown" }
+        );
+      }
     }
+
+    // detect restart (player drop to 0 while online)
+    if (online && lastPlayers > 0 && players === 0) {
+      bot.sendMessage(
+        CHAT_ID,
+        `🔄 Server *${SERVER_IP}* might be restarting...`,
+        { parse_mode: "Markdown" }
+      );
+    }
+
+    lastPlayers = players;
+
+  } catch (err) {
+    console.error("Error checking server:", err);
+    bot.sendMessage(
+      CHAT_ID,
+      `⚠️ Error checking server *${SERVER_IP}*: ${err.message}`,
+      { parse_mode: "Markdown" }
+    );
+  }
 }
 
-// ⏱️ Check every 20 sec
-setInterval(checkServer, 20000);
+// ====== COMMAND: /status ======
+bot.onText(/\/status/, async (msg) => {
+  const chatId = msg.chat.id;
 
-// 🌐 Keep bot alive for Render free plan
-http.createServer((req, res) => {
-    res.writeHead(200, {"Content-Type": "text/plain"});
-    res.end("Bot is running\n");
-}).listen(3000);
+  try {
+    const res = await fetch(`https://api.mcsrvstat.us/2/${SERVER_IP}`);
+    const data = await res.json();
+
+    if (data.online) {
+      const players = data.players?.online || 0;
+      bot.sendMessage(
+        chatId,
+        `✅ Server *${SERVER_IP}* is ONLINE!\n👥 Players: ${players}`,
+        { parse_mode: "Markdown" }
+      );
+    } else {
+      bot.sendMessage(
+        chatId,
+        `❌ Server *${SERVER_IP}* is OFFLINE!`,
+        { parse_mode: "Markdown" }
+      );
+    }
+  } catch (err) {
+    bot.sendMessage(
+      chatId,
+      `⚠️ Error checking server: ${err.message}`,
+      { parse_mode: "Markdown" }
+    );
+  }
+});
+
+// ====== LOOP ======
+setInterval(checkServer, CHECK_INTERVAL);
+checkServer(); // run immediately
